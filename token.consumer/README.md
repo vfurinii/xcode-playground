@@ -93,3 +93,7 @@ The request uses `start_time` at the start of the current month, `bucket_width=1
 - The widget's primary metric is USD spend returned by the Costs API.
 - The local alert is sent once per month when spend passes 50% of the configured monthly budget. If there is no budget/cost, it uses tokens as a fallback.
 - A macOS app does not send local notifications directly to Apple Watch. That requires an iOS/watchOS app, push via APNs, or an intermediary service with a Watch app.
+
+How the widget should be appear
+
+<img width="754" height="362" alt="image" src="https://github.com/user-attachments/assets/76131d9a-1d7b-468f-a41f-404eef1c9647" />
