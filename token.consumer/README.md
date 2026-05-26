@@ -1,95 +1,95 @@
 # AI Token Consumer Widget
 
-Widget macOS para acompanhar gasto em USD e consumo de tokens da OpenAI no mes atual.
+macOS widget for tracking OpenAI USD spend and token usage for the current month.
 
-O app salva a OpenAI Admin Key no Keychain do macOS. Nenhuma API key deve ser commitada no repositorio.
+The app saves the OpenAI Admin Key in the macOS Keychain. No API key should be committed to the repository.
 
-## Requisitos
+## Requirements
 
-- macOS com suporte a WidgetKit.
-- Xcode instalado.
-- Uma OpenAI Admin Key com permissao de leitura para usage/costs da organizacao.
-- Uma conta Apple Developer configurada no Xcode para assinar o app e o widget.
+- macOS with WidgetKit support.
+- Xcode installed.
+- An OpenAI Admin Key with read permission for organization usage/costs.
+- An Apple Developer account configured in Xcode to sign the app and widget.
 
-## Rodando localmente
+## Running locally
 
-1. Clone o repositorio:
+1. Clone the repository:
 
    ```sh
-   git clone <url-do-repositorio>
+   git clone <repository-url>
    cd ai-token-consumer-widget
    ```
 
-2. Abra o projeto no Xcode:
+2. Open the project in Xcode:
 
    ```sh
    open token.consumer/token.consumer.xcodeproj
    ```
 
-3. Em `Signing & Capabilities`, selecione o seu Team para os dois targets:
+3. In `Signing & Capabilities`, select your Team for both targets:
 
    - `token.consumer`
    - `TokenConsumerWidgetExtension`
 
-4. Troque os identificadores de exemplo por identificadores unicos seus:
+4. Replace the sample identifiers with your own unique identifiers:
 
-   - `PRODUCT_BUNDLE_IDENTIFIER`: use algo como `com.seu-nome.token-consumer`.
-   - `APP_GROUP_IDENTIFIER`: use algo como `group.com.seu-nome.token-consumer`.
+   - `PRODUCT_BUNDLE_IDENTIFIER`: this project uses `com.vitorfurini.token-consumer`.
+   - `APP_GROUP_IDENTIFIER`: this project uses `group.vitorfurini.token-consumer`.
 
-   Configure o mesmo `APP_GROUP_IDENTIFIER` nos dois targets. O app e o widget usam esse App Group para compartilhar preferencias e a referencia do Keychain.
+   Configure the same `APP_GROUP_IDENTIFIER` in both targets. The app and widget use this App Group to share preferences and the Keychain reference.
 
-5. Confirme que os dois targets tem as capabilities abaixo:
+5. Confirm that both targets have the following capabilities:
 
-   - App Groups, usando o mesmo App Group.
-   - Keychain Sharing, usando o mesmo access group.
-   - Outgoing Connections/Network Client, para chamar a API da OpenAI.
+   - App Groups, using the same App Group.
+   - Keychain Sharing, using the same access group.
+   - Outgoing Connections/Network Client, to call the OpenAI API.
 
-6. Rode o target `token.consumer`.
+6. Run the `token.consumer` target.
 
-7. No app, informe a `OpenAI Admin Key` e clique em `Salvar chave`.
+7. In the app, enter the `OpenAI Admin Key` and click `Save key`.
 
-8. Opcionalmente informe:
+8. Optionally enter:
 
    - Project ID.
-   - Referencia mensal de tokens.
-   - Orcamento mensal em USD.
+   - Monthly token reference.
+   - Monthly budget in USD.
 
-9. Adicione o widget `AI Token Usage` na Central de Notificacoes do macOS.
+9. Add the `AI Token Usage` widget to the macOS Notification Center.
 
-O widget pede atualizacao a cada 5 minutos. O macOS pode atrasar ou agrupar atualizacoes para economizar energia, entao isso nao e tempo real garantido.
+The widget requests an update every 5 minutes. macOS may delay or batch updates to save energy, so this is not guaranteed real-time behavior.
 
-## Instalando no Mac
+## Installing on Mac
 
-Para usar fora do Xcode:
+To use the app outside Xcode:
 
-1. No Xcode, selecione o scheme `token.consumer`.
+1. In Xcode, select the `token.consumer` scheme.
 2. Use `Product > Archive`.
-3. Na janela Organizer, exporte o app para distribuicao local ou Developer ID, conforme sua conta Apple.
-4. Copie o app exportado para `/Applications`.
-5. Abra o app uma vez, salve a Admin Key e depois adicione o widget no macOS.
+3. In the Organizer window, export the app for local distribution or Developer ID, depending on your Apple account.
+4. Copy the exported app to `/Applications`.
+5. Open the app once, save the Admin Key, and then add the widget in macOS.
 
-Se o macOS bloquear o app por assinatura/notarizacao, confira as opcoes de exportacao no Xcode e as permissoes em `System Settings > Privacy & Security`.
+If macOS blocks the app because of signing/notarization, check the export options in Xcode and the permissions in `System Settings > Privacy & Security`.
 
-## Dados usados
+## Data Used
 
-O projeto chama diretamente:
+The project calls these endpoints directly:
 
 - `GET https://api.openai.com/v1/organization/usage/completions`
 - `GET https://api.openai.com/v1/organization/costs`
 
-A busca usa `start_time` no inicio do mes atual, `bucket_width=1d` e `limit=31`.
+The request uses `start_time` at the start of the current month, `bucket_width=1d`, and `limit=31`.
 
-## Seguranca
+## Security
 
-- Nao coloque sua OpenAI Admin Key em arquivos do projeto, README, issues ou commits.
-- A chave digitada no app fica no Keychain compartilhado entre o app e o widget.
-- Preferencias nao sensiveis ficam em `UserDefaults(suiteName:)` dentro do App Group.
-- Se uma chave real foi commitada por acidente, revogue essa chave no dashboard da OpenAI e gere outra. Remover do codigo nao invalida uma chave que ja ficou publica.
+- Do not put your OpenAI Admin Key in project files, README, issues, or commits.
+- The key entered in the app is stored in the Keychain shared between the app and widget.
+- Non-sensitive preferences are stored in `UserDefaults(suiteName:)` inside the App Group.
+- If a real key was accidentally committed, revoke that key in the OpenAI dashboard and generate another one. Removing it from code does not invalidate a key that has already become public.
 
-## Observacoes
+## Notes
 
-- A chave precisa ter permissao administrativa de organizacao para consultar usage/costs.
-- O valor de custo vem da Costs API. Se essa chamada falhar, o widget ainda tenta mostrar tokens.
-- A metrica principal do widget e o gasto em USD retornado pela Costs API.
-- O alerta local e enviado uma vez por mes quando o gasto passa de 50% do orcamento mensal configurado. Se nao houver orcamento/custo, ele usa tokens como fallback.
-- Um app macOS nao envia notificacoes locais diretamente para o Apple Watch. Para isso, e necessario um app iOS/watchOS, push via APNs, ou um servico intermediario com app no Watch.
+- The key needs organization-level administrative permission to query usage/costs.
+- Cost values come from the Costs API. If that call fails, the widget still tries to show tokens.
+- The widget's primary metric is USD spend returned by the Costs API.
+- The local alert is sent once per month when spend passes 50% of the configured monthly budget. If there is no budget/cost, it uses tokens as a fallback.
+- A macOS app does not send local notifications directly to Apple Watch. That requires an iOS/watchOS app, push via APNs, or an intermediary service with a Watch app.

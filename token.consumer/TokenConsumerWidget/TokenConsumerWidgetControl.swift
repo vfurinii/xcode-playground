@@ -10,7 +10,7 @@ import SwiftUI
 import WidgetKit
 
 struct TokenConsumerWidgetControl: ControlWidget {
-    static let kind: String = "com.example.token-consumer.TokenConsumerWidgetControl"
+    static let kind: String = "com.vitorfurini.token-consumer.TokenConsumerWidgetControl"
 
     var body: some ControlWidgetConfiguration {
         AppIntentControlConfiguration(
@@ -26,7 +26,7 @@ struct TokenConsumerWidgetControl: ControlWidget {
             }
         }
         .displayName("Timer")
-        .description("A an example control that runs a timer.")
+        .description("An example control that runs a timer.")
     }
 }
 

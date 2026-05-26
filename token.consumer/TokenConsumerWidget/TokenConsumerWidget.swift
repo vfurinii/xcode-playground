@@ -86,7 +86,7 @@ struct TokenUsageWidgetView: View {
 
             if let message = entry.usage.errorMessage {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Sem dados")
+                    Text("No data")
                         .font(.headline)
                     Text(message)
                         .font(.caption2)
@@ -104,7 +104,7 @@ struct TokenUsageWidgetView: View {
                         .tint(entry.usage.budgetProgress > 0.85 ? .red : .green)
 
                     if entry.usage.monthlyBudgetUSD > 0 {
-                        Text("de \(entry.usage.monthlyBudgetUSD, format: .currency(code: "USD")) no mes")
+                        Text("of \(entry.usage.monthlyBudgetUSD, format: .currency(code: "USD")) this month")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -169,6 +169,7 @@ struct TokenUsageSnapshot {
     var costUSD: Double?
     var model: String?
     var monthlyBudgetUSD: Double
+    var costErrorMessage: String?
     var errorMessage: String?
 
     var limitProgress: Double {
@@ -195,6 +196,7 @@ struct TokenUsageSnapshot {
         costUSD: 14.72,
         model: "gpt-5",
         monthlyBudgetUSD: 50,
+        costErrorMessage: nil,
         errorMessage: nil
     )
 
@@ -208,11 +210,12 @@ struct TokenUsageSnapshot {
             costUSD: nil,
             model: nil,
             monthlyBudgetUSD: fallbackBudgetUSD,
+            costErrorMessage: nil,
             errorMessage: message
         )
     }
 
-    init(totalTokens: Int, inputTokens: Int, outputTokens: Int, requestCount: Int, monthlyLimit: Int, costUSD: Double?, model: String?, monthlyBudgetUSD: Double, errorMessage: String?) {
+    init(totalTokens: Int, inputTokens: Int, outputTokens: Int, requestCount: Int, monthlyLimit: Int, costUSD: Double?, model: String?, monthlyBudgetUSD: Double, costErrorMessage: String?, errorMessage: String?) {
         self.totalTokens = totalTokens
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
@@ -221,6 +224,7 @@ struct TokenUsageSnapshot {
         self.costUSD = costUSD
         self.model = model
         self.monthlyBudgetUSD = monthlyBudgetUSD
+        self.costErrorMessage = costErrorMessage
         self.errorMessage = errorMessage
     }
 }
@@ -228,14 +232,20 @@ struct TokenUsageSnapshot {
 enum TokenUsageClient {
     static func fetch(adminKey: String, projectID: String, fallbackTokenLimit: Int, fallbackBudgetUSD: Double) async -> TokenUsageSnapshot {
         guard !adminKey.isEmpty else {
-            return .failure("Configure uma OpenAI Admin Key.", fallbackTokenLimit: fallbackTokenLimit, fallbackBudgetUSD: fallbackBudgetUSD)
+            return .failure("Configure an OpenAI Admin Key.", fallbackTokenLimit: fallbackTokenLimit, fallbackBudgetUSD: fallbackBudgetUSD)
         }
 
         do {
             async let usageResponse = fetchCompletionUsage(adminKey: adminKey, projectID: projectID)
             async let costsResponse = fetchCosts(adminKey: adminKey, projectID: projectID)
             let usage = try await usageResponse
-            let cost = try? await costsResponse
+            let costResult: Result<Double, Error>
+            do {
+                costResult = .success(try await costsResponse)
+            } catch {
+                costResult = .failure(error)
+            }
+            let cost = try? costResult.get()
 
             return TokenUsageSnapshot(
                 totalTokens: usage.inputTokens + usage.outputTokens,
@@ -246,6 +256,7 @@ enum TokenUsageClient {
                 costUSD: cost,
                 model: nil,
                 monthlyBudgetUSD: fallbackBudgetUSD,
+                costErrorMessage: costResult.errorMessage(prefix: "Cost unavailable"),
                 errorMessage: nil
             )
         } catch {
@@ -262,7 +273,7 @@ enum TokenUsageClient {
             URLQueryItem(name: "limit", value: "31")
         ]
         if !projectID.isEmpty {
-            components.queryItems?.append(URLQueryItem(name: "project_ids[]", value: projectID))
+            components.queryItems?.append(URLQueryItem(name: "project_ids", value: projectID))
         }
 
         let response: OpenAIUsageResponse = try await request(components.url!, adminKey: adminKey)
@@ -278,7 +289,7 @@ enum TokenUsageClient {
             URLQueryItem(name: "limit", value: "31")
         ]
         if !projectID.isEmpty {
-            components.queryItems?.append(URLQueryItem(name: "project_ids[]", value: projectID))
+            components.queryItems?.append(URLQueryItem(name: "project_ids", value: projectID))
         }
 
         let response: OpenAICostsResponse = try await request(components.url!, adminKey: adminKey)
@@ -410,4 +421,13 @@ struct WidgetOpenAIErrorResponse: Decodable {
 
 struct WidgetOpenAIErrorDetail: Decodable {
     let message: String?
+}
+
+private extension Result {
+    func errorMessage(prefix: String) -> String? {
+        if case .failure(let error) = self {
+            return "\(prefix): \(error.localizedDescription)"
+        }
+        return nil
+    }
 }

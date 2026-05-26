@@ -48,32 +48,32 @@ struct ContentView: View {
                     Button {
                         saveAdminKey()
                     } label: {
-                        Label("Salvar chave", systemImage: "key")
+                        Label("Save key", systemImage: "key")
                     }
 
                     if let keychainMessage {
                         Text(keychainMessage)
                             .font(.caption)
-                            .foregroundStyle(keychainMessage.hasPrefix("Erro") ? .red : .secondary)
+                            .foregroundStyle(keychainMessage.hasPrefix("Error") ? .red : .secondary)
                     }
 
-                    TextField("Project ID opcional", text: $projectID)
+                    TextField("Optional project ID", text: $projectID)
                         .textFieldStyle(.roundedBorder)
 
                     Stepper(value: $monthlyLimit, in: 1...1_000_000_000, step: 10_000) {
-                        Text("Referencia mensal: \(monthlyLimit.formatted()) tokens")
+                        Text("Monthly reference: \(monthlyLimit.formatted()) tokens")
                     }
 
                     Stepper(value: $monthlyBudgetUSD, in: 0...1_000_000, step: 5) {
-                        Text("Orcamento mensal: \(monthlyBudgetUSD, format: .currency(code: "USD"))")
+                        Text("Monthly budget: \(monthlyBudgetUSD, format: .currency(code: "USD"))")
                     }
                 }
 
-                Section("Alertas") {
+                Section("Alerts") {
                     Button {
                         Task { await requestNotificationAuthorization() }
                     } label: {
-                        Label("Ativar notificacao em 50%", systemImage: "bell.badge")
+                        Label("Enable 50% notification", systemImage: "bell.badge")
                     }
 
                     if let notificationMessage {
@@ -83,7 +83,7 @@ struct ContentView: View {
                     }
                 }
 
-                Section("Consumo do mes atual") {
+                Section("Current month usage") {
                     HStack(alignment: .firstTextBaseline) {
                         Text(usage.primaryCostText)
                             .font(.system(size: 42, weight: .bold, design: .rounded))
@@ -96,7 +96,7 @@ struct ContentView: View {
                         .tint(usage.budgetProgress > 0.85 ? .red : .green)
 
                     if usage.monthlyBudgetUSD > 0 {
-                        Text("\(Int((usage.budgetProgress * 100).rounded()))% do orcamento mensal")
+                        Text("\(Int((usage.budgetProgress * 100).rounded()))% of monthly budget")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -104,7 +104,7 @@ struct ContentView: View {
                     Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 8) {
                         if let cost = usage.costUSD {
                             GridRow {
-                                Text("Gasto")
+                                Text("Spend")
                                 HStack(spacing: 4) {
                                     Text(cost, format: .currency(code: "USD"))
                                     if usage.monthlyBudgetUSD > 0 {
@@ -132,8 +132,13 @@ struct ContentView: View {
                             .foregroundStyle(.orange)
                     }
 
+                    if let costErrorMessage = usage.costErrorMessage {
+                        Label(costErrorMessage, systemImage: "dollarsign.circle")
+                            .foregroundStyle(.orange)
+                    }
+
                     if let lastRefresh {
-                        Text("Atualizado as \(lastRefresh.formatted(date: .omitted, time: .shortened))")
+                        Text("Updated at \(lastRefresh.formatted(date: .omitted, time: .shortened))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -145,7 +150,7 @@ struct ContentView: View {
                 Button {
                     Task { await refreshUsage() }
                 } label: {
-                    Label("Atualizar", systemImage: "arrow.clockwise")
+                    Label("Refresh", systemImage: "arrow.clockwise")
                 }
                 .disabled(isLoading)
             }
@@ -162,9 +167,9 @@ struct ContentView: View {
     private func saveAdminKey() {
         do {
             try KeychainStore.saveAdminKey(openAIAdminKey)
-            keychainMessage = "Chave salva para o app e o widget."
+            keychainMessage = "Key saved for the app and widget."
         } catch {
-            keychainMessage = "Erro ao salvar: \(error.localizedDescription)"
+            keychainMessage = "Error saving key: \(error.localizedDescription)"
         }
     }
 
@@ -189,8 +194,8 @@ struct ContentView: View {
     private func requestNotificationAuthorization() async {
         let allowed = await UsageNotificationManager.requestAuthorization()
         notificationMessage = allowed
-            ? "Notificacao ativada. O alerta sera enviado ao passar de 50% no mes."
-            : "Permissao negada. Ative notificacoes em System Settings."
+            ? "Notification enabled. The alert will be sent when usage passes 50% this month."
+            : "Permission denied. Enable notifications in System Settings."
     }
 }
 
@@ -206,6 +211,7 @@ struct AppTokenUsageSnapshot {
     var monthlyLimit: Int
     var costUSD: Double?
     var monthlyBudgetUSD: Double
+    var costErrorMessage: String?
     var errorMessage: String?
 
     var limitProgress: Double {
@@ -231,6 +237,7 @@ struct AppTokenUsageSnapshot {
         monthlyLimit: 1000000,
         costUSD: 14.72,
         monthlyBudgetUSD: 50,
+        costErrorMessage: nil,
         errorMessage: nil
     )
 
@@ -243,11 +250,12 @@ struct AppTokenUsageSnapshot {
             monthlyLimit: fallbackTokenLimit,
             costUSD: nil,
             monthlyBudgetUSD: fallbackBudgetUSD,
+            costErrorMessage: nil,
             errorMessage: message
         )
     }
 
-    init(totalTokens: Int, inputTokens: Int, outputTokens: Int, requestCount: Int, monthlyLimit: Int, costUSD: Double?, monthlyBudgetUSD: Double, errorMessage: String?) {
+    init(totalTokens: Int, inputTokens: Int, outputTokens: Int, requestCount: Int, monthlyLimit: Int, costUSD: Double?, monthlyBudgetUSD: Double, costErrorMessage: String?, errorMessage: String?) {
         self.totalTokens = totalTokens
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
@@ -255,6 +263,7 @@ struct AppTokenUsageSnapshot {
         self.monthlyLimit = monthlyLimit
         self.costUSD = costUSD
         self.monthlyBudgetUSD = monthlyBudgetUSD
+        self.costErrorMessage = costErrorMessage
         self.errorMessage = errorMessage
     }
 }
@@ -262,14 +271,20 @@ struct AppTokenUsageSnapshot {
 enum AppTokenUsageClient {
     static func fetch(adminKey: String, projectID: String, fallbackTokenLimit: Int, fallbackBudgetUSD: Double) async -> AppTokenUsageSnapshot {
         guard !adminKey.isEmpty else {
-            return .failure("Configure uma OpenAI Admin Key.", fallbackTokenLimit: fallbackTokenLimit, fallbackBudgetUSD: fallbackBudgetUSD)
+            return .failure("Configure an OpenAI Admin Key.", fallbackTokenLimit: fallbackTokenLimit, fallbackBudgetUSD: fallbackBudgetUSD)
         }
 
         do {
             async let usageResponse = fetchCompletionUsage(adminKey: adminKey, projectID: projectID)
             async let costsResponse = fetchCosts(adminKey: adminKey, projectID: projectID)
             let usage = try await usageResponse
-            let cost = try? await costsResponse
+            let costResult: Result<Double, Error>
+            do {
+                costResult = .success(try await costsResponse)
+            } catch {
+                costResult = .failure(error)
+            }
+            let cost = try? costResult.get()
 
             return AppTokenUsageSnapshot(
                 totalTokens: usage.inputTokens + usage.outputTokens,
@@ -279,6 +294,7 @@ enum AppTokenUsageClient {
                 monthlyLimit: fallbackTokenLimit,
                 costUSD: cost,
                 monthlyBudgetUSD: fallbackBudgetUSD,
+                costErrorMessage: costResult.errorMessage(prefix: "Cost unavailable"),
                 errorMessage: nil
             )
         } catch {
@@ -295,7 +311,7 @@ enum AppTokenUsageClient {
             URLQueryItem(name: "limit", value: "31")
         ]
         if !projectID.isEmpty {
-            components.queryItems?.append(URLQueryItem(name: "project_ids[]", value: projectID))
+            components.queryItems?.append(URLQueryItem(name: "project_ids", value: projectID))
         }
 
         let response: AppOpenAIUsageResponse = try await request(components.url!, adminKey: adminKey)
@@ -311,7 +327,7 @@ enum AppTokenUsageClient {
             URLQueryItem(name: "limit", value: "31")
         ]
         if !projectID.isEmpty {
-            components.queryItems?.append(URLQueryItem(name: "project_ids[]", value: projectID))
+            components.queryItems?.append(URLQueryItem(name: "project_ids", value: projectID))
         }
 
         let response: AppOpenAICostsResponse = try await request(components.url!, adminKey: adminKey)
@@ -443,4 +459,13 @@ struct OpenAIErrorResponse: Decodable {
 
 struct OpenAIErrorDetail: Decodable {
     let message: String?
+}
+
+private extension Result {
+    func errorMessage(prefix: String) -> String? {
+        if case .failure(let error) = self {
+            return "\(prefix): \(error.localizedDescription)"
+        }
+        return nil
+    }
 }
