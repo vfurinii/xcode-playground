@@ -289,14 +289,22 @@ enum TokenUsageClient {
         var request = URLRequest(url: url)
         request.timeoutInterval = 10
         request.cachePolicy = .reloadIgnoringLocalCacheData
-        request.setValue("Bearer \(adminKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(sanitizeAdminKey(adminKey))", forHTTPHeaderField: "Authorization")
 
         let (data, response) = try await URLSession.shared.data(for: request)
         if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
-            throw TokenUsageError.httpStatus(httpResponse.statusCode)
+            throw TokenUsageError.httpStatus(httpResponse.statusCode, WidgetOpenAIErrorResponse.message(from: data))
         }
 
         return try JSONDecoder().decode(Response.self, from: data)
+    }
+
+    private static func sanitizeAdminKey(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.lowercased().hasPrefix("bearer ") {
+            return String(trimmed.dropFirst(7)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return trimmed
     }
 }
 
@@ -361,7 +369,7 @@ struct OpenAICostsResponse: Decodable {
 
     var total: Double {
         data.reduce(0) { partial, bucket in
-            partial + bucket.results.reduce(0) { $0 + $1.amount.value }
+            partial + bucket.results.reduce(0) { $0 + ($1.amount?.value ?? 0) }
         }
     }
 }
@@ -371,20 +379,35 @@ struct CostBucket: Decodable {
 }
 
 struct CostResult: Decodable {
-    let amount: CostAmount
+    let amount: CostAmount?
 }
 
 struct CostAmount: Decodable {
-    let value: Double
+    let value: Double?
 }
 
 enum TokenUsageError: LocalizedError {
-    case httpStatus(Int)
+    case httpStatus(Int, String?)
 
     var errorDescription: String? {
         switch self {
-        case .httpStatus(let status):
-            "OpenAI API HTTP \(status)"
+        case .httpStatus(let status, let message):
+            if let message, !message.isEmpty {
+                return "OpenAI API HTTP \(status): \(message)"
+            }
+            return "OpenAI API HTTP \(status)"
         }
     }
+}
+
+struct WidgetOpenAIErrorResponse: Decodable {
+    let error: WidgetOpenAIErrorDetail?
+
+    static func message(from data: Data) -> String? {
+        (try? JSONDecoder().decode(WidgetOpenAIErrorResponse.self, from: data))?.error?.message
+    }
+}
+
+struct WidgetOpenAIErrorDetail: Decodable {
+    let message: String?
 }

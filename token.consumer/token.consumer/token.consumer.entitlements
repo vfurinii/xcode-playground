@@ -4,7 +4,8 @@
 <dict>
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>$(APP_GROUP_IDENTIFIER)</string>
+		<string>group.vitorfurini.token-consumer</string>
+		<string>group.example.token-consumer</string>
 	</array>
 	<key>com.apple.security.network.client</key>
 	<true/>
