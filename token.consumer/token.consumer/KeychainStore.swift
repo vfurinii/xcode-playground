@@ -13,11 +13,11 @@ enum KeychainStore {
             return ""
         }
 
-        return String(data: data, encoding: .utf8) ?? ""
+        return sanitizeAdminKey(String(data: data, encoding: .utf8) ?? "")
     }
 
     static func saveAdminKey(_ value: String) throws {
-        let data = Data(value.utf8)
+        let data = Data(sanitizeAdminKey(value).utf8)
         var query = baseQuery()
 
         let attributes: [String: Any] = [
@@ -49,6 +49,17 @@ enum KeychainStore {
             kSecAttrAccount as String: SharedSettings.adminKeyAccount,
             kSecAttrAccessGroup as String: SharedSettings.keychainAccessGroup
         ]
+    }
+
+    private static func sanitizeAdminKey(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.localizedCaseInsensitiveCompare("Bearer") == .orderedSame {
+            return ""
+        }
+        if trimmed.lowercased().hasPrefix("bearer ") {
+            return String(trimmed.dropFirst(7)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return trimmed
     }
 }
 
