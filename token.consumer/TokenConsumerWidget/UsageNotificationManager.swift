@@ -24,7 +24,7 @@ enum UsageNotificationManager {
             }
 
             let content = UNMutableNotificationContent()
-            content.title = "OpenAI: 50% do orcamento usado"
+            content.title = "OpenAI: 50% of budget used"
             content.body = notificationBody(totalTokens: totalTokens, monthlyLimit: monthlyLimit, costUSD: costUSD, monthlyBudgetUSD: monthlyBudgetUSD)
             content.sound = .default
 
@@ -45,15 +45,15 @@ enum UsageNotificationManager {
     private static func notificationBody(totalTokens: Int, monthlyLimit: Int, costUSD: Double?, monthlyBudgetUSD: Double) -> String {
         if let costUSD, monthlyBudgetUSD > 0 {
             let percent = Int((costUSD / monthlyBudgetUSD * 100).rounded())
-            return "\(percent)% usados: \(costUSD.formatted(.currency(code: "USD"))) de \(monthlyBudgetUSD.formatted(.currency(code: "USD")))."
+            return "\(percent)% used: \(costUSD.formatted(.currency(code: "USD"))) of \(monthlyBudgetUSD.formatted(.currency(code: "USD")))."
         }
 
         let percent = monthlyLimit > 0 ? Int((Double(totalTokens) / Double(monthlyLimit) * 100).rounded()) : 0
-        let tokenText = "\(totalTokens.formatted()) de \(monthlyLimit.formatted()) tokens"
+        let tokenText = "\(totalTokens.formatted()) of \(monthlyLimit.formatted()) tokens"
         if let costUSD {
-            return "\(percent)% usados: \(tokenText). Custo atual: \(costUSD.formatted(.currency(code: "USD")))."
+            return "\(percent)% used: \(tokenText). Current cost: \(costUSD.formatted(.currency(code: "USD")))."
         }
-        return "\(percent)% usados: \(tokenText)."
+        return "\(percent)% used: \(tokenText)."
     }
 
     private static func currentMonthKey() -> String {
