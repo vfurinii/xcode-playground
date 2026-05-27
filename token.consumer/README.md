@@ -96,4 +96,9 @@ The request uses `start_time` at the start of the current month, `bucket_width=1
 
 How the widget should be appear
 
-<img width="754" height="362" alt="image" src="https://github.com/user-attachments/assets/76131d9a-1d7b-468f-a41f-404eef1c9647" />
+Small size:
+<img width="202" height="190" alt="image" src="https://github.com/user-attachments/assets/dada9951-7afc-452a-ac6a-c49c586b8c52" />
+
+Medium size:
+<img width="370" height="182" alt="image" src="https://github.com/user-attachments/assets/29293da6-bf77-4a7a-81af-1299a14951be" />
+
