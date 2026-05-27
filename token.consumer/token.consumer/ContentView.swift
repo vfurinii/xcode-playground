@@ -27,8 +27,9 @@ struct ContentView: View {
                     HStack(spacing: 12) {
                         Image("TokenPulseLogo")
                             .resizable()
-                            .scaledToFit()
+                            .scaledToFill()
                             .frame(width: 46, height: 46)
+                            .clipped()
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         VStack(alignment: .leading, spacing: 3) {
                             Text("AI Token Usage")
@@ -330,11 +331,29 @@ enum AppTokenUsageClient {
             components.queryItems?.append(URLQueryItem(name: "project_ids", value: projectID))
         }
 
-        let response: AppOpenAICostsResponse = try await request(components.url!, adminKey: adminKey)
-        return response.total
+        let data = try await requestData(components.url!, adminKey: adminKey)
+
+        if let response = try? JSONDecoder().decode(AppOpenAICostsResponse.self, from: data) {
+            return response.total
+        }
+
+        if let fallbackTotal = parseCostTotalFallback(from: data) {
+            return fallbackTotal
+        }
+
+        throw AppTokenUsageError.decodeFailed(responseSnippet(from: data))
     }
 
     private static func request<Response: Decodable>(_ url: URL, adminKey: String) async throws -> Response {
+        let data = try await requestData(url, adminKey: adminKey)
+        do {
+            return try JSONDecoder().decode(Response.self, from: data)
+        } catch {
+            throw AppTokenUsageError.decodeFailed(responseSnippet(from: data))
+        }
+    }
+
+    private static func requestData(_ url: URL, adminKey: String) async throws -> Data {
         var request = URLRequest(url: url)
         request.timeoutInterval = 10
         request.cachePolicy = .reloadIgnoringLocalCacheData
@@ -344,8 +363,53 @@ enum AppTokenUsageClient {
         if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
             throw AppTokenUsageError.httpStatus(httpResponse.statusCode, OpenAIErrorResponse.message(from: data))
         }
+        return data
+    }
 
-        return try JSONDecoder().decode(Response.self, from: data)
+    private static func parseCostTotalFallback(from data: Data) -> Double? {
+        guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let buckets = root["data"] as? [[String: Any]] else {
+            return nil
+        }
+
+        var total = 0.0
+        var foundAnyValue = false
+        for bucket in buckets {
+            guard let results = bucket["results"] as? [[String: Any]] else { continue }
+            for result in results {
+                if let amount = result["amount"] as? [String: Any] {
+                    if let value = amount["value"] as? Double {
+                        total += value
+                        foundAnyValue = true
+                    } else if let value = amount["value"] as? Int {
+                        total += Double(value)
+                        foundAnyValue = true
+                    } else if let valueString = amount["value"] as? String, let value = Double(valueString) {
+                        total += value
+                        foundAnyValue = true
+                    }
+                }
+                if let directValue = result["cost"] as? Double {
+                    total += directValue
+                    foundAnyValue = true
+                } else if let directValue = result["cost"] as? Int {
+                    total += Double(directValue)
+                    foundAnyValue = true
+                } else if let directValue = result["cost"] as? String, let parsed = Double(directValue) {
+                    total += parsed
+                    foundAnyValue = true
+                }
+            }
+        }
+        return foundAnyValue ? total : nil
+    }
+
+    private static func responseSnippet(from data: Data, maxLength: Int = 180) -> String {
+        let raw = String(data: data, encoding: .utf8)?
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? "<non-utf8 response>"
+        return String(raw.prefix(maxLength))
     }
 
     private static func sanitizeAdminKey(_ value: String) -> String {
@@ -437,6 +501,7 @@ struct AppCostAmount: Decodable {
 
 enum AppTokenUsageError: LocalizedError {
     case httpStatus(Int, String?)
+    case decodeFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -445,6 +510,8 @@ enum AppTokenUsageError: LocalizedError {
                 return "OpenAI API HTTP \(status): \(message)"
             }
             return "OpenAI API HTTP \(status)"
+        case .decodeFailed(let snippet):
+            return "Response format changed. Snippet: \(snippet)"
         }
     }
 }
